@@ -1,0 +1,53 @@
+import streamlit as st
+import psutil
+import time
+import pandas as pd
+
+st.set_page_config(page_title="Network Traffic Monitor", layout="wide")
+
+st.title("📊 Real-Time Network Monitor")
+st.write("Memantau kecepatan Upload dan Download secara langsung.")
+
+# Inisialisasi placeholder untuk grafik
+chart_placeholder = st.empty()
+
+# Inisialisasi data
+data = pd.DataFrame(columns=['Time', 'Download (MB)', 'Upload (MB)'])
+
+def get_network_usage():
+    # Mengambil statistik I/O jaringan
+    net_io = psutil.net_io_counters()
+    return net_io.bytes_recv, net_io.bytes_sent
+
+# Ambil data awal
+old_recv, old_sent = get_network_usage()
+
+while True:
+    time.sleep(1) # Interval 1 detik
+    new_recv, new_sent = get_network_usage()
+    
+    # Hitung selisih dalam Megabytes (MB)
+    download_speed = (new_recv - old_recv) / (1024 * 1024)
+    upload_speed = (new_sent - old_sent) / (1024 * 1024)
+    
+    # Update data awal untuk iterasi berikutnya
+    old_recv, old_sent = new_recv, new_sent
+    
+    # Tambahkan ke dataframe
+    current_time = pd.Timestamp.now().strftime('%H:%M:%S')
+    new_entry = pd.DataFrame({'Time': [current_time], 
+                              'Download (MB)': [download_speed], 
+                              'Upload (MB)': [upload_speed]})
+    
+    data = pd.concat([data, new_entry], ignore_index=True)
+    
+    # Simpan hanya 20 data terakhir agar grafik tetap bersih
+    data = data.tail(20)
+    
+    # Tampilkan di Dashboard
+    with chart_placeholder.container():
+        col1, col2 = st.columns(2)
+        col1.metric("Download Speed", f"{download_speed:.2f} MB/s")
+        col2.metric("Upload Speed", f"{upload_speed:.2f} MB/s")
+        
+        st.line_chart(data.set_index('Time'))
